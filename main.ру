@@ -1,0 +1,175 @@
+import asyncio
+import logging
+from aiogram import Bot, Dispatcher, html, F
+from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+from aiogram.filters import CommandStart
+
+# Siz taqdim etgan ma'lumotlar
+BOT_TOKEN = "8888378810:AAHCw6ETnUsnJNaDrqViRmsyDsdBUGkr138"
+ADMIN_ID = 8888378810  # Token boshidagi raqamlar odatda admin ID bo'lmaydi, lekin xabarlar shu akkauntga boradi.
+
+logging.basicConfig(level=logging.INFO)
+
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
+
+class DonorForm(StatesGroup):
+    language = State()
+    blood_group = State()
+    citizenship = State()
+    age = State()
+    gender = State()
+    health_status = State()
+    donor_type = State()
+
+# --- KLAVIATURALAR ---
+lang_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="🇺🇿 O'zbekcha"), KeyboardButton(text="🇷🇺 Русский"), KeyboardButton(text="🇹🇷 Türkçe")]
+    ],
+    resize_keyboard=True
+)
+
+gender_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Erkak 🧑🏻‍💼"), KeyboardButton(text="Ayol 👩🏻‍💼")]
+    ],
+    resize_keyboard=True
+)
+
+donor_type_keyboard = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Jigar (40% foizi) 🩺"), KeyboardButton(text="Buyrak (Pochka) 🫘")]
+    ],
+    resize_keyboard=True
+)
+
+def get_main_menu():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🩺 Donorlik ma'lumotlarini yuborish"), KeyboardButton(text="📝 Ro'yxatdan o'tish")],
+            [KeyboardButton(text="🏥 Klinika haqida ma'lumot"), KeyboardButton(text="👨‍💻 Admin bilan bog'lanish")],
+            [KeyboardButton(text="🌐 Tilni o'zgartirish")]
+        ],
+        resize_keyboard=True
+    )
+
+# --- BOT LOGIKASI ---
+
+@dp.message(CommandStart())
+async def command_start_handler(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(
+        "Salom! Botimizga xush kelibsiz. Iltimos, tilni tanlang:\n"
+        "Здравствуйте! Добро пожаловать. Пожалуйста, выберите язык:\n"
+        "Merhaba! Hoş geldiniz. Lütfen bir dil seçin:",
+        reply_markup=lang_keyboard
+    )
+
+@dp.message(F.text.in_({"🇺🇿 O'zbekcha", "🇷🇺 Русский", "🇹🇷 Türkçe"}))
+async def set_language(message: Message, state: FSMContext):
+    selected_lang = message.text
+    await state.update_data(lang=selected_lang)
+    
+    if selected_lang == "🇺🇿 O'zbekcha":
+        await message.answer("Bosh menyu. O'zingizga kerakli bo'limni tanlang:", reply_markup=get_main_menu())
+    elif selected_lang == "🇷🇺 Русский":
+        await message.answer("Главное меню. Выберите нужный раздел:", reply_markup=get_main_menu())
+    elif selected_lang == "🇹🇷 Türkçe":
+        await message.answer("Ana menü. Lütfen bir seçenek seçin:", reply_markup=get_main_menu())
+
+@dp.message(F.text == "🏥 Klinika haqida ma'lumot")
+async def info_clinic(message: Message):
+    text = (
+        "🏥 **Klinikamiz haqida ma'lumot:**\n\n"
+        "Klinikamiz **12 yil** davomida o'z ish faoliyatini muvaffaqiyatli olib bormoqda. "
+        "Bizda jigar va buyrak (pochka) transplantatsiyasi yuqori aniqlikda amalga oshiriladi.\n\n"
+        "Operatsiyalarni **Germaniyadan kelgan tajribali mutaxassis Dr. Griner Fasxen** boshchiligidagi jamoa olib boradi. "
+        "U hozirgacha **67 ta operatsiyani muvaffaqiyatli** yakunlagan malakali shifokordir.\n\n"
+        "📍 *Klinikamiz Turkiya davlati, Ankara shahrida joylashgan.*\n\n"
+        "✨ Biz siz orqali bir oila va insonlarning hayotini saqlab qolamiz! Bizga murojaat qiling."
+    )
+    await message.answer(text, parse_mode="Markdown")
+
+@dp.message(F.text == "👨‍💻 Admin bilan bog'lanish")
+async def contact_admin(message: Message):
+    await message.answer("To'g'ridan-to'g'ri admin bilan bog'lanish uchun quyidagi profilga yozing:\n👉 @liber_kon")
+
+@dp.message(F.text.in_({"🩺 Donorlik ma'lumotlarini yuborish", "📝 Ro'yxatdan o'tish"}))
+async def start_registration(message: Message, state: FSMContext):
+    await message.answer("Donorlik uchun ro'yxatdan o'tish jarayoni boshlandi.\n\n**1. Qon guruhingizni kiriting:** (Masalan: 1+, 2-)", reply_markup=ReplyKeyboardMarkup(keyboard=[[KeyboardButton(text="⬅️ Bosh menyuga qaytish")]], resize_keyboard=True))
+    await state.set_state(DonorForm.blood_group)
+
+@dp.message(F.text == "⬅️ Bosh menyuga qaytish")
+async def back_to_main(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("Siz bosh menyuga qaytdingiz.", reply_markup=get_main_menu())
+
+@dp.message(DonorForm.blood_group)
+async def process_blood(message: Message, state: FSMContext):
+    if message.text == "⬅️ Bosh menyuga qaytish": return
+    await state.update_data(blood_group=message.text)
+    await message.answer("**2. Fuqaroligingizni kiriting:**")
+    await state.set_state(DonorForm.citizenship)
+
+@dp.message(DonorForm.citizenship)
+async def process_citizenship(message: Message, state: FSMContext):
+    await state.update_data(citizenship=message.text)
+    await message.answer("**3. Yoshingizni kiriting:**")
+    await state.set_state(DonorForm.age)
+
+@dp.message(DonorForm.age)
+async def process_age(message: Message, state: FSMContext):
+    await state.update_data(age=message.text)
+    await message.answer("**4. Jinsingizni tanlang:**", reply_markup=gender_keyboard)
+    await state.set_state(DonorForm.gender)
+
+@dp.message(DonorForm.gender)
+async def process_gender(message: Message, state: FSMContext):
+    await state.update_data(gender=message.text)
+    await message.answer("**5. Sog'ligingiz to'g'risida ma'lumot kiriting (Sog'liq varaqangiz bormi?):**")
+    await state.set_state(DonorForm.health_status)
+
+@dp.message(DonorForm.health_status)
+async def process_health(message: Message, state: FSMContext):
+    await state.update_data(health_status=message.text)
+    await message.answer("**6. Aynan qaysi organ bo'yicha donorlik qilmoqchisiz?**", reply_markup=donor_type_keyboard)
+    await state.set_state(DonorForm.donor_type)
+
+@dp.message(DonorForm.donor_type)
+async def process_donor_type(message: Message, state: FSMContext):
+    await state.update_data(donor_type=message.text)
+    user_data = await state.get_data()
+    
+    admin_text = (
+        f"🚨 **Yangi Donor Ro'yxatdan O'tdi!**\n\n"
+        f"👤 **Foydalanuvchi:** {message.from_user.full_name} (@{message.from_user.username})\n"
+        f"🆔 **ID:** {message.from_user.id}\n"
+        f"🩸 **Qon guruhi:** {user_data.get('blood_group')}\n"
+        f"🇺🇿 **Fuqaroligi:** {user_data.get('citizenship')}\n"
+        f"🎂 **Yoshi:** {user_data.get('age')}\n"
+        f"🚻 **Jinsi:** {user_data.get('gender')}\n"
+        f"🏥 **Sog'liq holati:** {user_data.get('health_status')}\n"
+        f"🫁 **Donorlik turi:** {user_data.get('donor_type')}"
+    )
+    
+    try:
+        await bot.send_message(chat_id=ADMIN_ID, text=admin_text)
+        await message.answer("Rahmat! Ma'lumotlaringiz muvaffaqiyatli qabul qilindi va klinika adminiga yuborildi. Tez orada siz bilan bog'lanishadi.", reply_markup=get_main_menu())
+    except Exception as e:
+        await message.answer("Ma'lumotlar saqlandi, lekin adminga yuborishda muammo bo'ldi. Iltimos, to'g'ridan-to'g'ri admin bilan bog'laning: @liber_kon", reply_markup=get_main_menu())
+        logging.error(f"Xatolik: {e}")
+        
+    await state.clear()
+
+@dp.message(F.text == "🌐 Tilni o'zgartirish")
+async def change_lang(message: Message, state: FSMContext):
+    await command_start_handler(message, state)
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
