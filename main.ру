@@ -183,6 +183,6 @@ async def change_lang(message: Message, state: FSMContext):
 async def main():
     await dp.start_polling(bot)
 
-if name == "main":
+if __name__ == "main":
     import asyncio
     asyncio.run(main())
